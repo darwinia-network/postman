@@ -1,4 +1,4 @@
-name: shadow
+name: postman
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  mmr:
+  build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
