@@ -1,7 +1,9 @@
 # Postman
 
-Check the pending headers and emit mails to mailing list.
+[![Shadow][workflow-badge]][github]
+[![LICENSE](https://img.shields.io/github/license/darwinia-network/postman)](https://choosealicense.com/licenses/gpl-3.0/)
 
+Check the pending headers and emit mails to mailing list.
 
 ## Usage
 
@@ -31,3 +33,7 @@ var (
 ## LICENSE
 
 GPL-3.0
+
+
+[github]: https://github.com/darwinia-network/postman
+[workflow-badge]: https://github.com/darwinia-network/postman/workflows/postman/badge.svg

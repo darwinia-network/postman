@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +42,9 @@ func init() {
 
 	seconds := os.Getenv("SECONDS")
 	if seconds != "" {
-		SECONDS = seconds
+		if secs, err := strconv.Atoi(seconds); err == nil {
+			SECONDS = secs
+		}
 	}
 
 	websocket.SetEndpoint(ENDPOINT)
@@ -52,7 +55,7 @@ func init() {
 func main() {
 	for {
 		ride()
-		time.Sleep(SECONDS * time.Second)
+		time.Sleep(time.Duration(SECONDS) * time.Second)
 	}
 }
 
