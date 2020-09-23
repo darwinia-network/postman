@@ -79,7 +79,12 @@ func checkHeader(header PendingHeader) bool {
 
 	defer resp.Body.Close()
 	var canonicalHT ComplexHeaderThing
-	json.NewDecoder(resp.Body).Decode(&canonicalHT)
+	err = json.NewDecoder(resp.Body).Decode(&canonicalHT)
+	if err != nil {
+		log.Println(err)
+		time.Sleep(3 * time.Second)
+		return checkHeader(header)
+	}
 
 	// deep compare
 	return reflect.DeepEqual(canonicalHT.HeaderThing, header.HeaderThing.HeaderThing())
