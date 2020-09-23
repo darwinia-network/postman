@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,12 +21,13 @@ import (
 
 // ENVIROMENTS
 var (
-	// PROMETHEUS = ""
-	SHADOW   = "https://testnet.shadow.darwinia.network"
-	ENDPOINT = "wss://crab.darwinia.network"
+	SECONDS    = 10
+	PROMETHEUS = "http://0.0.0.0:9093/api/v2"
+	SHADOW     = "https://testnet.shadow.darwinia.network"
+	ENDPOINT   = "wss://crab.darwinia.network"
 )
 
-// Init moduleo
+// Init module
 func init() {
 	node := os.Getenv("DARWINIA_NODE")
 	if node != "" {
@@ -37,12 +39,24 @@ func init() {
 		SHADOW = shadow
 	}
 
+	seconds := os.Getenv("SECONDS")
+	if seconds != "" {
+		SECONDS = seconds
+	}
+
 	websocket.SetEndpoint(ENDPOINT)
 	register()
 }
 
 // The main function
 func main() {
+	for {
+		ride()
+		time.Sleep(SECONDS * time.Second)
+	}
+}
+
+func ride() {
 	v := rpc.JsonRpcResult{}
 	ce(websocket.SendWsRequest(nil, &v, rpc.StateGetStorage(0, ENCODE_KEY, "")))
 
@@ -55,7 +69,8 @@ func main() {
 	ce(err)
 
 	// check if empty headers
-	if r == "" {
+	if r == "null" || r == "" {
+		log.Println("No pending headers...")
 		return
 	}
 
@@ -65,11 +80,17 @@ func main() {
 
 	// Check headers
 	for _, item := range headers {
-		log.Println(checkHeader(item))
+		if eq, ht := checkHeader(item); !eq {
+			alert := GenAlert(item, ht)
+			alert.emit()
+			continue
+		}
+
+		log.Printf("Ethereum block %d looks nice ~ \n", item.EthereumBlockNumber)
 	}
 }
 
-func checkHeader(header PendingHeader) bool {
+func checkHeader(header PendingHeader) (bool, HeaderThing) {
 	resp, err := http.Get(fmt.Sprintf("%s/eth/header/%d", SHADOW, header.EthereumBlockNumber))
 	if err != nil {
 		log.Println(err)
@@ -87,7 +108,7 @@ func checkHeader(header PendingHeader) bool {
 	}
 
 	// deep compare
-	return reflect.DeepEqual(canonicalHT.HeaderThing, header.HeaderThing.HeaderThing())
+	return reflect.DeepEqual(canonicalHT.HeaderThing, header.HeaderThing.HeaderThing()), canonicalHT.HeaderThing
 }
 
 /**
@@ -97,6 +118,12 @@ type PendingHeader struct {
 	BlockNumber         uint64           `json:"col1"`
 	EthereumBlockNumber uint64           `json:"col2"`
 	HeaderThing         ScaleHeaderThing `json:"col3"`
+}
+
+func (p *PendingHeader) toString() string {
+	b, err := json.Marshal(p)
+	ce(err)
+	return string(b)
 }
 
 type ScaleHeaderThing struct {
@@ -165,6 +192,12 @@ type HeaderThing struct {
 	MmrRoot string `json:"mmr_root"`
 }
 
+func (h *HeaderThing) toString() string {
+	b, err := json.Marshal(h)
+	ce(err)
+	return string(b)
+}
+
 type Header struct {
 	ParentHash       string   `json:"parent_hash"`
 	TimeStamp        uint64   `json:"timestamp"`
@@ -190,6 +223,56 @@ func register() {
 		return
 	}
 	register()
+}
+
+/**
+ * Prometheus Alert
+ */
+type PrometheusAlert struct {
+	StartsAt   string         `json:"startsAt"`
+	EndsAt     string         `json:"endsAt"`
+	Annotation PromAnnotation `json:"annotations"`
+	Label      PromLabel      `json:"labels"`
+	URL        string         `json:"generatorUrl"`
+}
+
+type PromAnnotation struct {
+	Pending   string `json:"pending"`
+	Canonical string `json:"canonical"`
+}
+
+type PromLabel struct {
+	AlertName string `json:"alertname"`
+	WhoAmI    string `json:"whoami"`
+}
+
+func GenAlert(pending PendingHeader, canonical HeaderThing) (alert PrometheusAlert) {
+	alert.StartsAt = time.Now().Format(time.RFC3339)
+	alert.EndsAt = time.Now().Format(time.RFC3339)
+	alert.Label = PromLabel{
+		AlertName: "Dangerous Pending Header!",
+		WhoAmI:    "POST Man I Am",
+	}
+	alert.URL = "https://github.com/darwinia-network/postman"
+	alert.Annotation = PromAnnotation{
+		Pending:   pending.toString(),
+		Canonical: canonical.toString(),
+	}
+
+	return
+}
+
+func (a *PrometheusAlert) emit() {
+	j, err := json.Marshal([]PrometheusAlert{*a})
+	ce(err)
+
+	// Post prometheus
+	_, err = http.Post(
+		fmt.Sprintf(PROMETHEUS+"/alerts"),
+		"application/json",
+		bytes.NewBuffer(j),
+	)
+	ce(err)
 }
 
 /**
