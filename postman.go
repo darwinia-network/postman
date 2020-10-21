@@ -230,8 +230,9 @@ func register() {
 		metadata.Latest(&metadata.RuntimeRaw{Spec: 1, Raw: util.TrimHex(coded)})
 		substrate.RegCustomTypes([]byte(Registry))
 		return
+	} else {
+		panic(err)
 	}
-	register()
 }
 
 /**
