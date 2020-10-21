@@ -2,6 +2,8 @@ name: Staging
 on:
   push:
     branches: ["develop", "master"]
+  pull_request:
+    branches: ["develop", "master"]
 
 jobs:
   build-and-deploy:
