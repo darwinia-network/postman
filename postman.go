@@ -20,42 +20,48 @@ import (
 	"github.com/itering/substrate-api-rpc/websocket"
 )
 
-// ENVIROMENTS
+// Environment variables
 var (
-	SECONDS    = 10
-	PROMETHEUS = "http://0.0.0.0:9093/api/v2"
-	SHADOW     = "https://testnet.shadow.darwinia.network"
-	ENDPOINT   = "wss://crab.darwinia.network"
+	INTERVAL_SECONDS      = 10
+	ALERTMANAGER_ENDPOINT = "http://127.0.0.1:9093/api/v2"
+	SHADOW_ENDPOINT       = "https://testnet.shadow.darwinia.network"
+	NODE_WS_ENDPOINT      = "wss://crab.darwinia.network"
 )
 
 // Init module
 func init() {
-	node := os.Getenv("DARWINIA_NODE")
-	if node != "" {
-		ENDPOINT = node
+	ale := os.Getenv("ALERTMANAGER_ENDPOINT")
+	if ale != "" {
+		ALERTMANAGER_ENDPOINT = ale
 	}
 
-	shadow := os.Getenv("SHADOW")
-	if shadow != "" {
-		SHADOW = shadow
+	nwe := os.Getenv("NODE_WS_ENDPOINT")
+	if nwe != "" {
+		NODE_WS_ENDPOINT = nwe
 	}
 
-	seconds := os.Getenv("SECONDS")
-	if seconds != "" {
-		if secs, err := strconv.Atoi(seconds); err == nil {
-			SECONDS = secs
+	she := os.Getenv("SHADOW_ENDPOINT")
+	if she != "" {
+		SHADOW_ENDPOINT = she
+	}
+
+	ins := os.Getenv("INTERVAL_SECONDS")
+	if ins != "" {
+		if secs, err := strconv.Atoi(ins); err == nil {
+			INTERVAL_SECONDS = secs
+		} else {
+			panic(err)
 		}
 	}
 
-	websocket.SetEndpoint(ENDPOINT)
+	websocket.SetEndpoint(NODE_WS_ENDPOINT)
 	register()
 }
 
-// The main function
 func main() {
 	for {
 		ride()
-		time.Sleep(time.Duration(SECONDS) * time.Second)
+		time.Sleep(time.Duration(INTERVAL_SECONDS) * time.Second)
 	}
 }
 
@@ -94,7 +100,7 @@ func ride() {
 }
 
 func checkHeader(header PendingHeader) (bool, HeaderThing) {
-	resp, err := http.Get(fmt.Sprintf("%s/eth/header/%d", SHADOW, header.EthereumBlockNumber))
+	resp, err := http.Get(fmt.Sprintf("%s/eth/header/%d", SHADOW_ENDPOINT, header.EthereumBlockNumber))
 	if err != nil {
 		log.Println(err)
 		time.Sleep(3 * time.Second)
@@ -224,40 +230,42 @@ func register() {
 		metadata.Latest(&metadata.RuntimeRaw{Spec: 1, Raw: util.TrimHex(coded)})
 		substrate.RegCustomTypes([]byte(Registry))
 		return
+	} else {
+		panic(err)
 	}
-	register()
 }
 
 /**
  * Prometheus Alert
  */
-type PrometheusAlert struct {
-	StartsAt   string         `json:"startsAt"`
-	EndsAt     string         `json:"endsAt"`
-	Annotation PromAnnotation `json:"annotations"`
-	Label      PromLabel      `json:"labels"`
-	URL        string         `json:"generatorUrl"`
+type Alert struct {
+	StartsAt   string          `json:"startsAt,omitempty"`
+	EndsAt     string          `json:"endsAt,omitempty"`
+	Annotation AlertAnnotation `json:"annotations"`
+	Label      AlertLabel      `json:"labels"`
+	URL        string          `json:"generatorUrl"`
 }
 
-type PromAnnotation struct {
+type AlertAnnotation struct {
 	Pending   string `json:"pending"`
 	Canonical string `json:"canonical"`
 }
 
-type PromLabel struct {
-	AlertName string `json:"alertname"`
-	WhoAmI    string `json:"whoami"`
+type AlertLabel struct {
+	AlertName      string `json:"alertname"`
+	ShadowEndpoint string `json:"shadow"`
+	NodeWsEndpoint string `json:"node_ws"`
 }
 
-func GenAlert(pending PendingHeader, canonical HeaderThing) (alert PrometheusAlert) {
+func GenAlert(pending PendingHeader, canonical HeaderThing) (alert Alert) {
 	alert.StartsAt = time.Now().Format(time.RFC3339)
-	alert.EndsAt = time.Now().Format(time.RFC3339)
-	alert.Label = PromLabel{
-		AlertName: "Dangerous Pending Header!",
-		WhoAmI:    "POST Man I Am",
+	alert.Label = AlertLabel{
+		AlertName:      "PendingHeadersInconsistent",
+		ShadowEndpoint: SHADOW_ENDPOINT,
+		NodeWsEndpoint: NODE_WS_ENDPOINT,
 	}
 	alert.URL = "https://github.com/darwinia-network/postman"
-	alert.Annotation = PromAnnotation{
+	alert.Annotation = AlertAnnotation{
 		Pending:   pending.toString(),
 		Canonical: canonical.toString(),
 	}
@@ -265,13 +273,13 @@ func GenAlert(pending PendingHeader, canonical HeaderThing) (alert PrometheusAle
 	return
 }
 
-func (a *PrometheusAlert) emit() {
-	j, err := json.Marshal([]PrometheusAlert{*a})
+func (a *Alert) emit() {
+	j, err := json.Marshal([]Alert{*a})
 	ce(err)
 
-	// Post prometheus
+	// Post alert to Alertmanager
 	_, err = http.Post(
-		fmt.Sprintf(PROMETHEUS+"/alerts"),
+		fmt.Sprintf(ALERTMANAGER_ENDPOINT+"/alerts"),
 		"application/json",
 		bytes.NewBuffer(j),
 	)
