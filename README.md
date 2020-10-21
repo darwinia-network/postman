@@ -21,19 +21,17 @@ $ postman
 ## ENVIROMENTS
 
 ```golang
-
 var (
-	SECONDS    = 10
-	PROMETHEUS = "http://0.0.0.0:9093/api/v2"
-	SHADOW     = "https://testnet.shadow.darwinia.network"
-	ENDPOINT   = "wss://crab.darwinia.network"
+	INTERVAL_SECONDS      = 10
+	ALERTMANAGER_ENDPOINT = "http://127.0.0.1:9093/api/v2"
+	SHADOW_ENDPOINT       = "https://testnet.shadow.darwinia.network"
+	NODE_WS_ENDPOINT      = "wss://crab.darwinia.network"
 )
 ```
 
 ## LICENSE
 
 GPL-3.0
-
 
 [github]: https://github.com/darwinia-network/postman
 [workflow-badge]: https://github.com/darwinia-network/postman/workflows/postman/badge.svg
